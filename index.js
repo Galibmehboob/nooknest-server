@@ -58,9 +58,13 @@ async function run() {
 
         });
 
-        app.get('/', (req, res) => {
+        app.get('/featured', async (req, res) => {
+            const cursor = roomsCollection.find().limit(6);
+            const featuredRooms = await cursor.toArray();
 
-            res.send('Hello, World!');
+
+
+            res.send(featuredRooms);
         });
 
 
