@@ -20,8 +20,7 @@ app.listen(PORT, () => {
 
 
 
-const uri = "mongodb+srv://nooknest:sYT7kxEf6ZI7zRbf@biko-book.qz9jwnu.mongodb.net/?appName=biko-book";
-
+const uri = process.env.MONGODB_URI;
 
 const client = new MongoClient(uri, {
     serverApi: {
