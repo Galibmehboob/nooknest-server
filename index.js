@@ -30,6 +30,27 @@ const client = new MongoClient(uri, {
     }
 });
 
+
+const logger = (req, res, next) => {
+
+    console.log(`${req.method} || ${req.url}`);
+
+    next()
+}
+
+
+const verifyToken = async (req, res, next) => {
+    const { authorization } = req.headers;
+
+    console.log(authorization);
+
+    // console.log(req.headers, 'from verify token');
+
+    next()
+
+}
+
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -48,7 +69,7 @@ async function run() {
 
             res.send(rooms);
         });
-        app.get('/rooms/:roomId', async (req, res) => {
+        app.get('/rooms/:roomId', logger, verifyToken, async (req, res) => {
             const { roomId } = req.params;
             const query = { _id: new ObjectId(roomId) };
             const result = await roomsCollection.findOne(query);
