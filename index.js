@@ -86,47 +86,94 @@ async function run() {
         const bookNowCollection = database.collection('bookNow');
         const bookingsCollection = database.collection('bookings');
 
-        app.get("/rooms", async (req, res) => {
 
-            const search = req.query.search || "";
+        app.get('/rooms', async (req, res) => {
 
-            const min = parseInt(req.query.min) || 0;
+            const { search } = req.query;
 
-            const max = parseInt(req.query.max) || 100000;
-
-            const amenities = req.query.amenities;
-
-            let query = {};
-
+            let cursor;
 
             if (search) {
 
-                query.name = {
-                    $regex: search,
-                    $options: "i",
-                };
+                cursor = await roomsCollection.find({
+
+                    $or: [
+
+                        {
+                            name: {
+                                $regex: search,
+                                $options: 'i',
+                            },
+                        },
+
+                        {
+                            description: {
+                                $regex: search,
+                                $options: 'i',
+                            },
+                        },
+
+                        {
+                            floor: {
+                                $regex: search,
+                                $options: 'i',
+                            },
+                        },
+
+                    ],
+                });
+
+            } else {
+
+                cursor = roomsCollection.find();
             }
 
+            const result = await cursor.toArray();
 
-            query.price = {
-                $gte: min,
-                $lte: max,
-            };
-
-
-            if (amenities) {
-
-                const amenitiesArray = amenities.split(",");
-
-                query.amenities = {
-                    $in: amenitiesArray,
-                };
-            }
-
-            const rooms = await roomsCollection.find(query).toArray();
-
-            res.send(rooms);
+            res.send(result);
         });
+
+        // app.get("/rooms", async (req, res) => {
+
+        //     const search = req.query.search || "";
+
+        //     const min = parseInt(req.query.min) || 0;
+
+        //     const max = parseInt(req.query.max) || 100;
+
+        //     const amenities = req.query.amenities;
+
+        //     let query = {};
+
+
+        //     if (search) {
+
+        //         query.name = {
+        //             $regex: search,
+        //             $options: "i",
+        //         };
+        //     }
+
+
+        //     query.price = {
+        //         $gte: min,
+        //         $lte: max,
+        //     };
+
+
+        //     if (amenities) {
+
+        //         const amenitiesArray = amenities.split(",");
+
+        //         query.amenities = {
+        //             $in: amenitiesArray,
+        //         };
+        //     }
+
+        //     const rooms = await roomsCollection.find(query).toArray();
+
+        //     res.send(rooms);
+        // });
 
         app.post("/rooms", async (req, res) => {
 
