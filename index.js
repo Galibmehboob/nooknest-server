@@ -86,6 +86,28 @@ async function run() {
         const bookNowCollection = database.collection('bookNow');
         const bookingsCollection = database.collection('bookings');
 
+        app.post("/rooms", async (req, res) => {
+
+            const roomData = req.body;
+
+            const result = await roomsCollection.insertOne(roomData);
+
+            res.send(result);
+        });
+
+        app.get("/myListings", async (req, res) => {
+
+            const email = req.query.email;
+
+            const query = {
+                ownerEmail: email,
+            };
+
+            const result = await roomsCollection.find(query).toArray();
+
+            res.send(result);
+        });
+
 
         app.get("/rooms", async (req, res) => {
             console.log("QUERY:", req.query);
