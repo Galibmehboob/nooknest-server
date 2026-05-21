@@ -20,7 +20,7 @@ app.listen(PORT, () => {
 
 
 const JWKS = createRemoteJWKSet(
-    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+    new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`))
 
 console.log(JWKS);
 
@@ -46,45 +46,34 @@ const logger = (req, res, next) => {
 
 
 const verifyToken = async (req, res, next) => {
-    const { authorization } = req.headers;
 
+    const { authorization } = req.headers;
 
     const token = authorization?.split(" ")[1];
 
-
-
-
     if (!token) {
-        return res.status(401).json({ massage: 'Unauthorize' })
+        return res.status(401).json({ message: 'Unauthorized' });
     }
 
     try {
+
         const JWKS = createRemoteJWKSet(
-            new URL('http://localhost:3000/api/auth/jwks')
-        )
+            new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`)
+        );
+
         const { payload } = await jwtVerify(token, JWKS);
-        // console.log(payload);
+
         req.user = payload;
-        console.log(req.user);
 
-
-        // return payload
     } catch (error) {
-        console.error('Token validation failed:', error)
-        // throw error
-        return res.status(401).json({ massage: 'Unauthorize' })
 
+        console.error(error);
+
+        return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // console.log(token);
-
-    // console.log(authorization);
-
-    // console.log(req.headers, 'from verify token');
-
-    next()
-
-}
+    next();
+};
 
 
 async function run() {
@@ -99,8 +88,9 @@ async function run() {
 
 
         app.get("/rooms", async (req, res) => {
+            console.log("QUERY:", req.query);
 
-            const { search, min, max, amenities } = req.query;
+            const search = req.query.search?.trim().toLowerCase();
 
             let query = {};
 
@@ -111,23 +101,11 @@ async function run() {
                 };
             }
 
-            if (min || max) {
-                query.price = {};
-
-                if (min) query.price.$gte = Number(min);
-                if (max) query.price.$lte = Number(max);
-            }
-
-            if (amenities) {
-                query.amenities = {
-                    $in: amenities.split(","),
-                };
-            }
-
             const rooms = await roomsCollection.find(query).toArray();
-
             res.send(rooms);
         });
+
+
         app.get('/rooms/:roomId', logger, verifyToken, async (req, res) => {
             const { roomId } = req.params;
             const query = { _id: new ObjectId(roomId) };
