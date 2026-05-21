@@ -14,9 +14,7 @@ app.use(express.json());
 
 
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+
 
 
 const JWKS = createRemoteJWKSet(
@@ -85,6 +83,8 @@ async function run() {
 
         const database = client.db('nooknestdb');
         const roomsCollection = database.collection('rooms');
+        const bookNowCollection = database.collection('bookNow');
+        const bookingsCollection = database.collection('bookings');
 
 
         app.get("/rooms", async (req, res) => {
@@ -105,6 +105,50 @@ async function run() {
             res.send(rooms);
         });
 
+        app.post('/bookings', async (req, res) => {
+
+            const bookingData = req.body;
+
+            const result = await bookingsCollection.insertOne({
+                ...bookingData,
+                status: 'confirmed',
+                createdAt: new Date(),
+            });
+
+            res.send(result);
+        });
+
+        app.get('/bookings', async (req, res) => {
+
+            const email = req.query.email;
+
+            const query = {
+                userEmail: email,
+            };
+
+            const result = await bookingsCollection.find(query).toArray();
+
+            res.send(result);
+        });
+
+        app.patch('/bookings/:id', async (req, res) => {
+
+            const id = req.params.id;
+
+            const filter = {
+                _id: new ObjectId(id),
+            };
+
+            const updatedDoc = {
+                $set: {
+                    status: 'cancelled',
+                },
+            };
+
+            const result = await bookingsCollection.updateOne(filter, updatedDoc);
+
+            res.send(result);
+        });
 
         app.get('/rooms/:roomId', logger, verifyToken, async (req, res) => {
             const { roomId } = req.params;
@@ -116,6 +160,35 @@ async function run() {
             // console.log(roomId);
 
         });
+
+        app.patch('booknow/:id', verifyToken, async (req, res) => {
+            const { roomId } = req.params;
+            const bookData = req.body;
+            const room = await roomsCollection.findOne({ _id: new ObjectId(roomId) })
+
+            if (!room) {
+                res.status(404).json({ massage: 'Room Not Found' })
+
+                await roomsCollection.updateOne({ _id: new ObjectId(roomId) },
+                    {
+                        $inc: { bookNowCount: 1 },
+                        $set: {
+                            lastBookedAt: new Date(),
+                        }
+                    }
+
+                )
+            }
+
+            const result = await bookNowCollection.insertOne({
+                ...bookData,
+                bookedAt: new Date(),
+
+            })
+
+            res.send(result)
+
+        })
 
         app.get('/featured', async (req, res) => {
             const cursor = roomsCollection.find().limit(6);
@@ -143,3 +216,8 @@ async function run() {
     }
 }
 run().catch(console.dir);
+
+
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
