@@ -98,10 +98,33 @@ async function run() {
         const roomsCollection = database.collection('rooms');
 
 
-        app.get('/rooms', async (req, res) => {
-            const cursor = roomsCollection.find({});
-            const rooms = await cursor.toArray();
-            console.log(rooms);
+        app.get("/rooms", async (req, res) => {
+
+            const { search, min, max, amenities } = req.query;
+
+            let query = {};
+
+            if (search) {
+                query.name = {
+                    $regex: search,
+                    $options: "i",
+                };
+            }
+
+            if (min || max) {
+                query.price = {};
+
+                if (min) query.price.$gte = Number(min);
+                if (max) query.price.$lte = Number(max);
+            }
+
+            if (amenities) {
+                query.amenities = {
+                    $in: amenities.split(","),
+                };
+            }
+
+            const rooms = await roomsCollection.find(query).toArray();
 
             res.send(rooms);
         });
