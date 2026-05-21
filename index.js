@@ -109,6 +109,49 @@ async function run() {
         });
 
 
+        app.post('/rooms', async (req, res) => {
+
+            const roomData = req.body;
+
+            const result = await roomsCollection.insertOne(roomData);
+
+            res.send(result);
+        });
+
+        app.delete('/rooms/:id', async (req, res) => {
+
+            const id = req.params.id;
+
+            const query = {
+                _id: new ObjectId(id)
+            };
+
+            const result = await roomsCollection.deleteOne(query);
+
+            res.send(result);
+        });
+
+        app.patch('/rooms/:id', async (req, res) => {
+
+            const id = req.params.id;
+
+            const updatedData = req.body;
+
+            const query = {
+                _id: new ObjectId(id)
+            };
+
+            const updateDoc = {
+                $set: updatedData
+            };
+
+            const result = await roomsCollection.updateOne(query, updateDoc);
+
+            res.send(result);
+        });
+
+
+
         app.get("/rooms", async (req, res) => {
             console.log("QUERY:", req.query);
 
