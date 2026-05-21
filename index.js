@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 dotenv.config();
 const cors = require('cors');
+const { createRemoteJWKSet } = require('jose-cjs');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -17,6 +18,11 @@ app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
 
+
+const JWKS = createRemoteJWKSet(
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`))
+
+console.log(JWKS);
 
 
 
@@ -42,7 +48,37 @@ const logger = (req, res, next) => {
 const verifyToken = async (req, res, next) => {
     const { authorization } = req.headers;
 
-    console.log(authorization);
+
+    const token = authorization?.split(" ")[1];
+
+
+
+
+    if (!token) {
+        return res.status(401).json({ massage: 'Unauthorize' })
+    }
+
+    try {
+        const JWKS = createRemoteJWKSet(
+            new URL('http://localhost:3000/api/auth/jwks')
+        )
+        const { payload } = await jwtVerify(token, JWKS);
+        // console.log(payload);
+        req.user = payload;
+        console.log(req.user);
+
+
+        // return payload
+    } catch (error) {
+        console.error('Token validation failed:', error)
+        // throw error
+        return res.status(401).json({ massage: 'Unauthorize' })
+
+    }
+
+    // console.log(token);
+
+    // console.log(authorization);
 
     // console.log(req.headers, 'from verify token');
 
@@ -73,6 +109,7 @@ async function run() {
             const { roomId } = req.params;
             const query = { _id: new ObjectId(roomId) };
             const result = await roomsCollection.findOne(query);
+            console.log(req.user);
 
             res.send(result);
             // console.log(roomId);
