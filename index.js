@@ -1,28 +1,20 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-dotenv.config();
 const cors = require('cors');
 const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
+
+dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
-
-
-
-
-
-
-
 const JWKS = createRemoteJWKSet(
-    new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`))
-
-console.log(JWKS);
-
-
+    new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`)
+);
 
 const uri = process.env.MONGODB_URI;
 
@@ -34,19 +26,13 @@ const client = new MongoClient(uri, {
     }
 });
 
-
 const logger = (req, res, next) => {
-
     console.log(`${req.method} || ${req.url}`);
-
-    next()
-}
-
+    next();
+};
 
 const verifyToken = async (req, res, next) => {
-
     const { authorization } = req.headers;
-
     const token = authorization?.split(" ")[1];
 
     if (!token) {
@@ -54,138 +40,71 @@ const verifyToken = async (req, res, next) => {
     }
 
     try {
-
-        const JWKS = createRemoteJWKSet(
-            new URL(`${process.env.BETTER_AUTH_URL}/api/auth/jwks`)
-        );
-
         const { payload } = await jwtVerify(token, JWKS);
-
         req.user = payload;
-
     } catch (error) {
-
         console.error(error);
-
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
     next();
 };
 
-
 async function run() {
     try {
-        // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
-        // Send a ping to confirm a successful connection
-        // await client.db("admin").command({ ping: 1 });
 
         const database = client.db('nooknestdb');
         const roomsCollection = database.collection('rooms');
         const bookNowCollection = database.collection('bookNow');
         const bookingsCollection = database.collection('bookings');
 
+        // GET ROOMS (single cleaned version)
+        app.get("/rooms", async (req, res) => {
 
-        app.get('/rooms', async (req, res) => {
+            const { search, min, max, amenities } = req.query;
 
-            const { search } = req.query;
+            let query = {};
 
-            let cursor;
-
+            // 1️⃣ SEARCH
             if (search) {
-
-                cursor = await roomsCollection.find({
-
-                    $or: [
-
-                        {
-                            name: {
-                                $regex: search,
-                                $options: 'i',
-                            },
-                        },
-
-                        {
-                            description: {
-                                $regex: search,
-                                $options: 'i',
-                            },
-                        },
-
-                        {
-                            floor: {
-                                $regex: search,
-                                $options: 'i',
-                            },
-                        },
-
-                    ],
-                });
-
-            } else {
-
-                cursor = roomsCollection.find();
+                query.$or = [
+                    { name: { $regex: search, $options: "i" } },
+                    { description: { $regex: search, $options: "i" } },
+                    { floor: { $regex: search, $options: "i" } }
+                ];
             }
 
-            const result = await cursor.toArray();
+            // 2️⃣ PRICE RANGE
+            if (min || max) {
+                query.price = {
+                    ...(min && { $gte: Number(min) }),
+                    ...(max && { $lte: Number(max) })
+                };
+            }
 
-            res.send(result);
+            // 3️⃣ MULTI AMENITIES (IMPORTANT)
+            if (amenities) {
+                const list = amenities.split(",");
+
+                query.amenities = {
+                    $in: list
+                };
+            }
+
+            const rooms = await roomsCollection.find(query).toArray();
+            res.send(rooms);
         });
 
-        // app.get("/rooms", async (req, res) => {
-
-        //     const search = req.query.search || "";
-
-        //     const min = parseInt(req.query.min) || 0;
-
-        //     const max = parseInt(req.query.max) || 100;
-
-        //     const amenities = req.query.amenities;
-
-        //     let query = {};
-
-
-        //     if (search) {
-
-        //         query.name = {
-        //             $regex: search,
-        //             $options: "i",
-        //         };
-        //     }
-
-
-        //     query.price = {
-        //         $gte: min,
-        //         $lte: max,
-        //     };
-
-
-        //     if (amenities) {
-
-        //         const amenitiesArray = amenities.split(",");
-
-        //         query.amenities = {
-        //             $in: amenitiesArray,
-        //         };
-        //     }
-
-        //     const rooms = await roomsCollection.find(query).toArray();
-
-        //     res.send(rooms);
-        // });
-
+        // POST ROOM (single only)
         app.post("/rooms", async (req, res) => {
-
             const roomData = req.body;
-
             const result = await roomsCollection.insertOne(roomData);
-
             res.send(result);
         });
 
-        app.get("/myListings", async (req, res) => {
-
+        // MY LISTINGS
+        app.get("/myListings", verifyToken, async (req, res) => {
             const email = req.query.email;
 
             const query = {
@@ -193,22 +112,11 @@ async function run() {
             };
 
             const result = await roomsCollection.find(query).toArray();
-
             res.send(result);
         });
 
-
-        app.post('/rooms', async (req, res) => {
-
-            const roomData = req.body;
-
-            const result = await roomsCollection.insertOne(roomData);
-
-            res.send(result);
-        });
-
+        // DELETE ROOM
         app.delete('/rooms/:id', async (req, res) => {
-
             const id = req.params.id;
 
             const query = {
@@ -216,14 +124,12 @@ async function run() {
             };
 
             const result = await roomsCollection.deleteOne(query);
-
             res.send(result);
         });
 
+        // UPDATE ROOM
         app.patch('/rooms/:id', async (req, res) => {
-
             const id = req.params.id;
-
             const updatedData = req.body;
 
             const query = {
@@ -235,32 +141,11 @@ async function run() {
             };
 
             const result = await roomsCollection.updateOne(query, updateDoc);
-
             res.send(result);
         });
 
-
-
-        app.get("/rooms", async (req, res) => {
-            console.log("QUERY:", req.query);
-
-            const search = req.query.search?.trim().toLowerCase();
-
-            let query = {};
-
-            if (search) {
-                query.name = {
-                    $regex: search,
-                    $options: "i",
-                };
-            }
-
-            const rooms = await roomsCollection.find(query).toArray();
-            res.send(rooms);
-        });
-
+        // BOOKINGS CREATE
         app.post('/bookings', async (req, res) => {
-
             const bookingData = req.body;
 
             const result = await bookingsCollection.insertOne({
@@ -272,8 +157,8 @@ async function run() {
             res.send(result);
         });
 
+        // GET BOOKINGS
         app.get('/bookings', async (req, res) => {
-
             const email = req.query.email;
 
             const query = {
@@ -281,12 +166,11 @@ async function run() {
             };
 
             const result = await bookingsCollection.find(query).toArray();
-
             res.send(result);
         });
 
+        // CANCEL BOOKING
         app.patch('/bookings/:id', async (req, res) => {
-
             const id = req.params.id;
 
             const filter = {
@@ -300,77 +184,69 @@ async function run() {
             };
 
             const result = await bookingsCollection.updateOne(filter, updatedDoc);
-
             res.send(result);
         });
 
+        // SINGLE ROOM (protected)
         app.get('/rooms/:roomId', logger, verifyToken, async (req, res) => {
             const { roomId } = req.params;
+
             const query = { _id: new ObjectId(roomId) };
+
             const result = await roomsCollection.findOne(query);
+
             console.log(req.user);
 
             res.send(result);
-            // console.log(roomId);
-
         });
 
-        app.patch('booknow/:id', verifyToken, async (req, res) => {
-            const { roomId } = req.params;
+        // BOOK NOW (ONLY minimal fix: route param issue corrected)
+        app.patch('/booknow/:id', verifyToken, async (req, res) => {
+            const { id } = req.params;
             const bookData = req.body;
-            const room = await roomsCollection.findOne({ _id: new ObjectId(roomId) })
+
+            const room = await roomsCollection.findOne({
+                _id: new ObjectId(id)
+            });
 
             if (!room) {
-                res.status(404).json({ massage: 'Room Not Found' })
-
-                await roomsCollection.updateOne({ _id: new ObjectId(roomId) },
-                    {
-                        $inc: { bookNowCount: 1 },
-                        $set: {
-                            lastBookedAt: new Date(),
-                        }
-                    }
-
-                )
+                return res.status(404).json({ message: 'Room Not Found' });
             }
+
+            await roomsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $inc: { bookNowCount: 1 },
+                    $set: {
+                        lastBookedAt: new Date(),
+                    }
+                }
+            );
 
             const result = await bookNowCollection.insertOne({
                 ...bookData,
                 bookedAt: new Date(),
+            });
 
-            })
+            res.send(result);
+        });
 
-            res.send(result)
-
-        })
-
+        // FEATURED
         app.get('/featured', async (req, res) => {
             const cursor = roomsCollection.find().limit(6);
             const featuredRooms = await cursor.toArray();
 
-
-
             res.send(featuredRooms);
         });
 
+        console.log("Connected to MongoDB successfully!");
 
-
-
-
-
-
-
-
-
-
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
-        // Ensures that the client will close when you finish/error
         // await client.close();
     }
 }
-run().catch(console.dir);
 
+run().catch(console.dir);
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
