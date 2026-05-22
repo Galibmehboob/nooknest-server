@@ -188,15 +188,17 @@ async function run() {
 
 
         app.get("/myListings", verifyToken, async (req, res) => {
-            const email = req.user?.email || req.user?.user?.email;
+
+            const email = req.user?.email;
 
             if (!email) {
                 return res.status(401).send({ message: "Unauthorized" });
             }
 
-            const query = { ownerEmail: email };
+            const result = await roomsCollection.find({
+                ownerEmail: email
+            }).toArray();
 
-            const result = await roomsCollection.find(query).toArray();
             res.send(result);
         });
 
